@@ -1,0 +1,103 @@
+# Example project config for a web app (Next.js / any HTTP UI). Copy this folder to
+# <agents_root>/<slug>/, rename, and edit every value marked CHANGE.
+#
+# Layout the loop expects:
+#   <agents_root>/_core/            ← this repo
+#   <agents_root>/<slug>/config.yml ← this file
+#   <agents_root>/<slug>/prompts/{pm,dev}.extra.txt
+#   <agents_root>/<slug>/{memory.md,pm_workbook.md,flow_checklist.md}
+
+slug: web-app
+project_path: /Users/you/code/my-web-app          # CHANGE — cwd for every agent's Bash tool
+github_repo: you/my-web-app                      # CHANGE
+cycle_pause: 300                                  # seconds between cycles
+max_runs: 10
+
+# manual (default — agents never touch prod) or on_pm_accept (the runner promotes work
+# PM has accepted against staging). Only meaningful when vars.promote_cmd is set.
+promote_policy: on_pm_accept
+
+# Real users PM can interview directly instead of guessing via a played persona —
+# see _core/scripts/interview_bot.py. This product has no bot of its own, but the
+# _core interview bot is shared across every project (token in _core/.env as
+# INTERVIEWER_BOT_TOKEN, created once via @BotFather) — each person just /starts
+# that one bot once, unrelated to this app. Omit this key to skip real interviews
+# (PM then writes questions to FEEDBACK.md ## Interview for a human to relay).
+# interview_ids:
+#   Kate: "111111111"                              # CHANGE — their Telegram chat_id
+
+vars:
+  human_name: Kate                                # CHANGE — whose `human:` comments override the agents
+  queue_label: pm-task
+  reviewer_name: PM
+  pm_title: PM
+
+  # Where PM's product docs live inside the repo (VISION/ROADMAP/DECISIONS/FEEDBACK).
+  product_dir: product
+  docs_branch: main                               # PM commits docs-only changes here
+  architecture_doc: docs/ARCHITECTURE.md          # Dev's module map
+
+  # Pacing knobs (all optional — these are the defaults)
+  delivery_ratio: "70/30"                         # initiative work vs bugs/polish
+  queue_cap: "5"                                  # open P1/P2 tasks at once
+  observe_every: "3"                              # Tester OBSERVE sweep every N cycles
+  rediscover_every: "10"                          # light Discovery refresh every N cycles
+  dev_tasks_per_session: "3"
+
+  # STAGING — what Dev deploys to and what PM verifies against.
+  app_url: "https://staging.my-web-app.example"   # CHANGE
+  deploy_cmd: "npm run deploy:staging"            # CHANGE — what Dev runs after merge
+
+  # --- Release safety (all optional; delete any line to turn that gate off) ---------
+  # 1. Pre-merge gate. Set this and Dev must deploy its BRANCH and verify it before the
+  #    PR is merged, so a bad change never reaches main. Without it, Dev merges first
+  #    and verify_cmd below is the net instead.
+  preview_cmd: "npm run deploy:preview -- --branch $(git rev-parse --abbrev-ref HEAD)"  # CHANGE
+  preview_url: "https://preview.my-web-app.example"                                     # CHANGE
+  # 2. Post-deploy health check, run by the runner (not the agent) after every cycle.
+  #    Non-zero exit → the cycle's commits are reverted and the previous state
+  #    redeployed. Make it cheap, independent, and honest — it is the one check the
+  #    agent cannot talk its way past.
+  verify_cmd: "curl -fsS %%app_url%%/api/health && npm run test:smoke"  # CHANGE
+  # 3. Production. Only set these if prod is a SEPARATE environment from app_url.
+  #    With promote_policy: on_pm_accept the runner promotes once every issue behind
+  #    the unpromoted commits is closed by PM, and moves the `promoted` git tag.
+  #    `git log promoted..main` is the pending-promotion queue, readable by hand.
+  promote_cmd: "npm run deploy:prod"                                    # CHANGE
+  promote_verify_cmd: "curl -fsS %%prod_url%%/api/health"               # CHANGE
+  prod_url: "https://my-web-app.example"                                # CHANGE
+  test_identity_note: "log in as test@example.com / <password in .env TEST_USER_PASSWORD>; never a real user's data"  # CHANGE
+
+  # How anyone verifies the live product. Name the actual installed tool.
+  evidence_method: "a real browser session against %%app_url%% (Playwright via `npx playwright`, or the browser MCP tool granted in tools:)"
+
+  # What "good" means for THIS product — PM and Reviewer judge against it. CHANGE.
+  quality_bar: |-
+    - The core job completes end to end without leaving the app or asking support.
+    - Every state the user can be in tells them what's happening and what to do next (loading, empty, error, done).
+    - Data the user entered is never lost or silently changed; destructive actions can be undone or are confirmed.
+    - Consistent with the existing design system — no one-off components, spacing, or copy tone.
+    - Fast enough that no step feels like waiting; no layout jumps.
+
+  exploration_log: "%%agents_dir%%/pm_workbook.md"
+  flow_checklist: "%%agents_dir%%/flow_checklist.md"
+
+  # interview_subjects: "Alex and Kate"           # optional — defaults to human_name
+  # interview_cmd / interview_replies: derived automatically from interview_ids above —
+  # only set these if you want to override the shared bot with something else.
+
+roles:
+  - name: pm
+    always_run: true
+    # `Agent` is required — PM sees the product only through subagents.
+    # Add your browser MCP tool name here if Tester should use it.
+    tools: "Bash,Read,Write,Edit,Glob,Grep,Agent"
+    subagents: [tester, codebase-audit, flow, logic]
+    # model: opus                                 # optional per-role override
+
+  - name: dev
+    always_run: false
+    gate: {label: pm-task, priorities: [P1, P2]}  # runs only if this query has results
+    tools: "Bash,Read,Write,Edit,Glob,Grep,Agent"
+    subagents: [architect, reviewer]
+    post_delay: 30                                # let the deploy settle before PM reviews

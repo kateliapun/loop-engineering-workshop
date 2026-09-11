@@ -1,0 +1,35 @@
+=== context_files ===
+
+=== lifecycle_notes ===
+
+=== queue_filters ===
+
+=== branch_setup ===
+cd %%project_path%% && git checkout main && git pull --ff-only
+git checkout -b task/<n>-<short-slug>
+
+=== plan_notes ===
+Handlers stay thin: parsing and reply formatting in the handler, decisions in the
+service layer, persistence in the repository layer — see %%architecture_doc%%. Any new
+user-facing text goes through the existing message templates, not inline strings.
+
+=== style_rules ===
+Commit after each coherent step: `git commit -m "<type>(<area>): <what> (Ref #<n>)"`.
+Run the bot locally against the staging token when you need to see a real reply.
+
+=== regression_check ===
+Run the bot-flow regression suite against staging: `python3 -m pytest tests/regression -q`.
+Add a flow spec (send → expected reply → expected state) for what this task shipped.
+
+=== ship_deploy ===
+git push -u origin HEAD
+gh pr create --repo %%repo%% --base main --fill --body "Ref #<n>
+
+<summary, tests, reviewer verdict>"
+gh pr merge --repo %%repo%% --squash --delete-branch
+%%deploy_cmd%%
+Wait for the container to be healthy, send one real message through
+scripts/tg_test_client.py, and confirm the new behavior before the Done comment.
+
+=== extra_done_fields ===
+- Deployed: staging bot at <commit sha>

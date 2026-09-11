@@ -1,0 +1,87 @@
+# Example project config for a Telegram bot (no web UI). Copy this folder to
+# <agents_root>/<slug>/, rename, and edit every value marked CHANGE.
+#
+# A bot needs a STAGING bot (second token, allow-listed test user) and a scripted test
+# client so Tester can send real messages and read real replies — see
+# skills/setup-pm-project/references/verification-driver.md.
+
+slug: telegram-bot
+project_path: /Users/you/code/my-bot              # CHANGE
+github_repo: you/my-bot                           # CHANGE
+cycle_pause: 600
+max_runs: 10
+
+# Real users PM can interview directly instead of guessing via a played persona —
+# see _core/scripts/interview_bot.py. One shared bot for every project (token in
+# _core/.env as INTERVIEWER_BOT_TOKEN, created once via @BotFather) — NOT this
+# product's own bot. Each person must /start that bot once so it can message them;
+# their chat_id is what goes here. Omit this whole key to skip real interviews
+# (PM then writes questions to FEEDBACK.md ## Interview for a human to relay).
+# interview_ids:
+#   Kate: "111111111"                              # CHANGE — their Telegram chat_id
+#   Alex: "222222222"                               # CHANGE
+
+vars:
+  human_name: Kate                                # CHANGE
+  queue_label: pm-task
+  reviewer_name: PM
+  pm_title: PM
+
+  product_dir: product
+  docs_branch: main
+  architecture_doc: docs/ARCHITECTURE.md
+
+  delivery_ratio: "70/30"
+  queue_cap: "4"
+  observe_every: "3"
+  rediscover_every: "8"
+  dev_tasks_per_session: "3"
+
+  # ONE-ENVIRONMENT shape: the agents own a single deployment and there is no
+  # promotion step. Here that environment is a staging bot; on a small product it may
+  # legitimately be the only deployment there is, because a second bot registration
+  # and a second stack can cost more than they are worth. Either way the safety that
+  # matters is not a second environment — it is an undo, which is what verify_cmd
+  # below buys. examples/web-app shows the two-environment shape (staging + prod with
+  # automatic promotion). See README "Release safety".
+  #
+  # Runs after every cycle, by the runner rather than the agent — so it is the one
+  # check the agent cannot talk its way past. Non-zero exit reverts whatever the cycle
+  # landed on the branch and redeploys the previous state, so a bad change is undone
+  # in the same cycle instead of sitting live until someone notices.
+  verify_cmd: >-                                  # CHANGE
+    ssh my-vps 'docker compose -f docker-compose.staging.yml ps --status running
+    | grep -q my-bot-staging' && python3 scripts/tg_test_client.py healthcheck
+  deploy_cmd: "ssh my-vps 'cd /srv/my-bot && git pull --ff-only && docker compose -f docker-compose.staging.yml up -d --build'"  # CHANGE
+  log_check_cmd: "ssh my-vps 'docker logs --since 24h my-bot-staging 2>&1 | grep -iE \"error|traceback\" | tail -50'"       # CHANGE
+  test_identity_note: "act as Telegram user id %%test_telegram_id%% (the allow-listed staging test account) via `python3 scripts/tg_test_client.py send \"<text>\"` / `... read`; never a real user's chat"
+  test_telegram_id: "123456789"                    # CHANGE
+
+  evidence_method: "real messages to the staging bot through scripts/tg_test_client.py (send, then read the actual reply); read source only for behavior with no message-level effect, such as a scheduled job — and say so"
+
+  quality_bar: |-
+    - A new user gets to the first useful result within three messages, without reading a help text.
+    - Every message the bot sends answers "what happened" and "what can I do now"; no dead ends, no silent failures.
+    - Conversation state survives restarts and time gaps; the bot never asks for something it already knows.
+    - Free-text input is handled generously (typos, natural phrasing, wrong order) and confirmed back before anything irreversible.
+    - Scheduled/background behavior (reminders, digests) fires on time, once, in the user's timezone.
+
+  exploration_log: "%%agents_dir%%/pm_workbook.md"
+  flow_checklist: "%%agents_dir%%/flow_checklist.md"
+
+  # interview_subjects: "Alex and Kate"             # optional — defaults to human_name
+  # interview_cmd / interview_replies: derived automatically from interview_ids above —
+  # only set these if you want to override the shared bot with something else.
+
+roles:
+  - name: pm
+    always_run: true
+    tools: "Bash,Read,Write,Edit,Glob,Grep,Agent"
+    subagents: [tester, codebase-audit, flow, logic]
+
+  - name: dev
+    always_run: false
+    gate: {label: pm-task, priorities: [P1, P2]}
+    tools: "Bash,Read,Write,Edit,Glob,Grep,Agent"
+    subagents: [architect, reviewer]
+    post_delay: 60

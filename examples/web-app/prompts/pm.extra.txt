@@ -1,0 +1,19 @@
+=== context_files ===
+- %%project_path%%/CLAUDE.md — project constraints; read before filing anything Dev must follow.
+
+=== pm_rules ===
+
+=== load_context ===
+Staging app: %%app_url%%. When anything needs a signed-in user, %%test_identity_note%%.
+Check recent server errors before deciding maintenance work:
+  %%log_check_cmd%%
+
+=== evidence_capture ===
+Tester saves screenshots under /tmp/tester/%%cycle%%/<issue>/. To attach evidence to a
+GitHub comment, stitch them into a GIF and upload:
+  EVIDENCE_URL=$(python3 %%core_dir%%/scripts/publish_evidence.py --repo %%repo%% --name issue-<n>-cycle-%%cycle%% /tmp/tester/%%cycle%%/<n>/*.png)
+Requires Pillow. If it fails, leave $EVIDENCE_URL empty and continue.
+
+=== goal_complete_extra ===
+
+=== body ===

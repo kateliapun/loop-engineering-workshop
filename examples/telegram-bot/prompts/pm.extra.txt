@@ -1,0 +1,23 @@
+=== context_files ===
+- %%project_path%%/CLAUDE.md — project constraints.
+- %%project_path%%/scripts/tg_test_client.py — the staging test client Tester uses.
+
+=== pm_rules ===
+Time-based behavior (reminders, digests) can't be observed live in one dispatch — have
+Tester trigger the scheduler directly if the project exposes a way, otherwise accept
+log/DB evidence and say so in the verdict.
+
+=== load_context ===
+%%test_identity_note%%.
+Recent errors from the staging bot:
+  %%log_check_cmd%%
+
+=== evidence_capture ===
+Tester saves transcripts (the exact messages sent and received) under
+/tmp/tester/%%cycle%%/<issue>/transcript.md and any screenshots alongside. Quote the
+relevant transcript lines in accept/reject comments; leave $EVIDENCE_URL empty unless
+there are PNGs to stitch with %%core_dir%%/scripts/publish_evidence.py.
+
+=== goal_complete_extra ===
+
+=== body ===
